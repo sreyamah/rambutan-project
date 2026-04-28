@@ -29,11 +29,15 @@ const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.1,
-  1000
+  4000
 );
 camera.position.z = 350;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false
+});
+
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0xf5f3ee, 1);
@@ -43,15 +47,14 @@ document.body.appendChild(renderer.domElement);
 // LIGHTING
 // =======================
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.82);
-scene.add(ambient);
+scene.add(new THREE.AmbientLight(0xffffff, 0.82));
 
-const keyLight = new THREE.PointLight(0xffffff, 1.2, 1200);
-keyLight.position.set(220, 220, 300);
+const keyLight = new THREE.PointLight(0xffffff, 1.25, 1500);
+keyLight.position.set(240, 240, 320);
 scene.add(keyLight);
 
-const fillLight = new THREE.PointLight(0xffd9df, 0.8, 900);
-fillLight.position.set(-220, -80, 220);
+const fillLight = new THREE.PointLight(0xffd9df, 0.85, 1200);
+fillLight.position.set(-240, -100, 260);
 scene.add(fillLight);
 
 // =======================
@@ -67,15 +70,19 @@ uiCanvas.style.position = "absolute";
 uiCanvas.style.left = "0";
 uiCanvas.style.top = "0";
 uiCanvas.style.pointerEvents = "none";
+
 document.body.appendChild(uiCanvas);
 
-// Reset button
+// =======================
+// RESET BUTTON
+// =======================
+
 const resetBtn = document.createElement("button");
 resetBtn.textContent = "Reset";
 resetBtn.style.position = "absolute";
-resetBtn.style.right = "20px";
 resetBtn.style.top = "20px";
-resetBtn.style.padding = "10px 20px";
+resetBtn.style.right = "20px";
+resetBtn.style.padding = "10px 18px";
 resetBtn.style.font = "600 16px 'Cormorant Garamond', serif";
 resetBtn.style.background = "rgba(255,255,255,0.9)";
 resetBtn.style.border = "1px solid rgba(0,0,0,0.2)";
@@ -84,30 +91,14 @@ resetBtn.style.cursor = "pointer";
 resetBtn.style.zIndex = "1000";
 document.body.appendChild(resetBtn);
 
-resetBtn.addEventListener("click", () => {
-  PHASE = 1;
-  progress = 0;
-  softness = 0;
-  targetSoftness = 0;
-  smoothVolume = 0;
-  speechConfidence = 0;
-  gentleSpeechGlobal = false;
-  topTextCurrent = "";
-  topTextTarget = "";
-  bottomTextCurrent = "";
-  bottomTextTarget = "";
-  textAnim = 1;
-  textAnimating = false;
-});
-
 // =======================
 // GLOBAL STATE
 // =======================
 
-let PHASE = 1; // 1 = discovery, 2 = taste, 3 = reflection
+let PHASE = 1;
 
 let progress = 0;
-const REQUIRED_TIME = 30; // use 8 while testing if needed
+const REQUIRED_TIME = 30; // TESTING: 5 seconds. Change to 30 for final.
 
 let softness = 0;
 let targetSoftness = 0;
@@ -116,17 +107,11 @@ let smoothVolume = 0;
 let speechConfidence = 0;
 let gentleSpeechGlobal = false;
 
+let pitchSmooth = 0.5;
+
 let lastFrameTime = performance.now();
 let phase2StartTime = 0;
 
-// debug readout
-let lastFeatures = {
-  rms: 0,
-  midRatio: 0,
-  speechy: false
-};
-
-// animated text
 let topTextCurrent = "";
 let bottomTextCurrent = "";
 let topTextTarget = "";
@@ -153,8 +138,7 @@ async function initAudio() {
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Resume audio context if suspended (required for modern browsers)
-    if (audioContext.state === 'suspended') {
+    if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
 
@@ -177,31 +161,31 @@ async function initAudio() {
     timeDomainData = new Float32Array(analyser.fftSize);
     freqData = new Float32Array(analyser.frequencyBinCount);
 
-    console.log("🎤 Mic connected, state:", audioContext.state);
+    console.log("🎤 Mic connected");
   } catch (err) {
-    console.error("Mic error:", err);
-    alert("Could not access microphone. Check browser permissions.");
+    console.error(err);
+    alert("Microphone access failed.");
   }
 }
 
-// Auto-initialize audio on load
 initAudio();
 
-// Also try to resume audio context on first user interaction
-document.addEventListener('click', () => {
-  if (audioContext && audioContext.state === 'suspended') {
-    audioContext.resume().then(() => {
-      console.log("Audio context resumed on click");
-    });
-  }
-}, { once: true });
+document.addEventListener(
+  "click",
+  () => {
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+  },
+  { once: true }
+);
 
 // =======================
 // HELPERS
 // =======================
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
 }
 
 function easeInOutCubic(x) {
@@ -219,7 +203,7 @@ function getProgressNorm() {
 }
 
 // =======================
-// TEXT CONTENT
+// TEXT
 // =======================
 
 function getPhaseText() {
@@ -228,21 +212,24 @@ function getPhaseText() {
       top: "Sweet sayings for sweeter fruit",
       bottom: "Speak gently to the fruit"
     };
-  } else if (PHASE === 2) {
+  }
+
+  if (PHASE === 2) {
     return {
       top: "You may taste what’s within the spikes",
       bottom: "Take one."
     };
-  } else {
-    return {
-      top: "What you soften remembers",
-      bottom: "Form is memory. Form is survival."
-    };
   }
+
+  return {
+    top: "What you soften remembers",
+    bottom: "Form is memory. Form is survival."
+  };
 }
 
 function initTextState() {
   const t = getPhaseText();
+
   topTextCurrent = t.top;
   bottomTextCurrent = t.bottom;
   topTextTarget = t.top;
@@ -275,8 +262,7 @@ function updateAnimatedText(dt) {
 }
 
 // =======================
-// AUDIO FEATURE ANALYSIS
-// SIMPLER DEBUG VERSION
+// AUDIO FEATURES
 // =======================
 
 function getAudioFeatures() {
@@ -284,13 +270,16 @@ function getAudioFeatures() {
     return {
       rms: 0,
       midRatio: 0,
-      speechy: false
+      speechy: false,
+      pitchNorm: 0.5,
+      hasPitch: false
     };
   }
 
   analyser.getFloatTimeDomainData(timeDomainData);
 
   let sumSquares = 0;
+
   for (let i = 0; i < timeDomainData.length; i++) {
     const s = timeDomainData[i];
     sumSquares += s * s;
@@ -306,26 +295,43 @@ function getAudioFeatures() {
   let totalEnergy = 0;
   let midEnergy = 0;
 
+  let strongestEnergy = 0;
+  let strongestFreq = 0;
+
   for (let i = 0; i < freqData.length; i++) {
     const freq = (i / freqData.length) * nyquist;
+
     const mag = Math.pow(10, freqData[i] / 20);
     const energy = mag * mag;
 
     totalEnergy += energy;
+
     if (freq >= 250 && freq <= 4000) {
       midEnergy += energy;
+    }
+
+    if (freq >= 85 && freq <= 450 && energy > strongestEnergy) {
+      strongestEnergy = energy;
+      strongestFreq = freq;
     }
   }
 
   const midRatio = totalEnergy > 0 ? midEnergy / totalEnergy : 0;
 
-  // looser, debug-friendly speech guess
   const speechy = rms > 0.01 && midRatio > 0.15;
+
+  const hasPitch = strongestFreq > 0 && rms > 0.01;
+
+  const pitchNorm = hasPitch
+    ? clamp((strongestFreq - 85) / (450 - 85), 0, 1)
+    : 0.5;
 
   return {
     rms,
     midRatio,
-    speechy
+    speechy,
+    pitchNorm,
+    hasPitch
   };
 }
 
@@ -333,7 +339,8 @@ function getAudioFeatures() {
 // CORE
 // =======================
 
-const coreGeometry = new THREE.SphereGeometry(70, 64, 64);
+const coreGeometry = new THREE.SphereGeometry(72, 64, 64);
+
 const coreMaterial = new THREE.MeshPhysicalMaterial({
   color: 0xffe6ee,
   roughness: 0.25,
@@ -348,88 +355,12 @@ core.visible = false;
 scene.add(core);
 
 // =======================
-// SPIKES
-// =======================
-
-const spikeGroup = new THREE.Group();
-scene.add(spikeGroup);
-
-const spikeMeshes = [];
-const spikeCount = 320;
-const fruitRadius = 110;
-const spikeLength = 40;
-const spikeBaseOffset = 20; // matches previous translate
-
-function createTendrilCurve(dir, i) {
-  // Returns a custom curve for a spike, with curl and animation
-  class TendrilCurve extends THREE.Curve {
-    constructor() {
-      super();
-      this.dir = dir.clone();
-      this.i = i;
-    }
-    getPoint(t) {
-      // t: 0 (base) to 1 (tip)
-      // Curl and animate the tip
-      const base = this.dir.clone().multiplyScalar(fruitRadius - spikeBaseOffset);
-      const tip = this.dir.clone().multiplyScalar(fruitRadius - spikeBaseOffset + spikeLength);
-
-      // Curl: add a perpendicular offset that increases with t
-      // Animate: sine wave based on time and spike index
-      const now = performance.now() * 0.001;
-      // Find a perpendicular vector
-      let perp = new THREE.Vector3(0, 1, 0);
-      if (Math.abs(this.dir.dot(perp)) > 0.99) perp = new THREE.Vector3(1, 0, 0);
-      perp.cross(this.dir).normalize();
-      // Curl amount
-      const curlStrength = 10 + 6 * Math.sin(now * 0.7 + this.i * 0.13);
-      const curl = perp.multiplyScalar(Math.sin(Math.PI * t) * curlStrength * t);
-
-      // Subtle waving in a second direction
-      let perp2 = new THREE.Vector3().crossVectors(this.dir, perp).normalize();
-      const waveStrength = 6 + 3 * Math.cos(now * 0.9 + this.i * 0.19);
-      const wave = perp2.multiplyScalar(Math.sin(Math.PI * t) * waveStrength * t);
-
-      // Interpolate base to tip
-      const pos = base.clone().lerp(tip, t);
-      pos.add(curl).add(wave);
-      return pos;
-    }
-  }
-  return new TendrilCurve();
-}
-
-const spikeMaterial = new THREE.MeshStandardMaterial({
-  color: 0xaa3948,
-  roughness: 0.85,
-  metalness: 0.02
-});
-
-for (let i = 0; i < spikeCount; i++) {
-  const theta = Math.random() * Math.PI * 2;
-  const phi = Math.acos(Math.random() * 2 - 1);
-
-  const x = Math.sin(phi) * Math.cos(theta);
-  const y = Math.sin(phi) * Math.sin(theta);
-  const z = Math.cos(phi);
-  const dir = new THREE.Vector3(x, y, z).normalize();
-
-  // Use TubeGeometry for tendril
-  const curve = createTendrilCurve(dir, i);
-  // Tapered tube: radius decreases from base to tip
-  const taperRadius = t => 2.1 * (1 - t) + 0.18; // base thick, tip thin
-  const tubeGeo = new THREE.TubeGeometry(curve, 16, 2.1, 7, false, taperRadius);
-  const spike = new THREE.Mesh(tubeGeo, spikeMaterial.clone());
-  spikeGroup.add(spike);
-  spikeMeshes.push({ mesh: spike, dir, curve, i });
-}
-
-// =======================
-// SHELL PANELS
+// SHELL
 // =======================
 
 let shellGroup;
 let shellPanels = [];
+
 const shellPanelCount = 6;
 const shellRadius = 95;
 
@@ -459,6 +390,7 @@ function createShell() {
 
     const panelMesh = new THREE.Mesh(panelGeometry, shellMaterial);
     const baseYRotation = (i / shellPanelCount) * Math.PI * 2;
+
     panelMesh.rotation.y = baseYRotation;
 
     panelGroup.add(panelMesh);
@@ -480,6 +412,7 @@ function updateShell(now) {
   shellPanels.forEach((panelObj, i) => {
     const group = panelObj.group;
     const delay = i * 0.04;
+
     const localOpen = clamp((eased - delay) / (1 - delay), 0, 1);
 
     group.rotation.z = localOpen * 1.15;
@@ -500,7 +433,224 @@ function updateShell(now) {
 }
 
 // =======================
-// DRAW UI
+// SPIKES — CONNECTED 3D CONICAL DROOPING SPINES
+// =======================
+
+const spikeGroup = new THREE.Group();
+scene.add(spikeGroup);
+
+let spikeMeshes = [];
+
+const spikeCount = 390;
+const fruitRadius = 110;
+
+// shorter, thicker, more rambutan-like
+const spikeHeight = 44;      // was 28
+const spikeBaseRadius = 4.4; // was 4.8
+const spikeEmbedDepth = 13;
+
+const spikeMaterial = new THREE.MeshStandardMaterial({
+  color: 0x651923,
+  roughness: 0.9,
+  metalness: 0.02
+});
+
+function makeSpikeGeometry() {
+  const geo = new THREE.ConeGeometry(
+    spikeBaseRadius,
+    spikeHeight,
+    14,
+    2,
+    false
+  );
+
+  // Base is buried into the fruit so it visibly connects to the body.
+  // Local cone extends along Y.
+  geo.translate(0, spikeHeight / 2 - spikeEmbedDepth, 0);
+
+  return geo;
+}
+
+const baseSpikeGeo = makeSpikeGeometry();
+
+function createSpike(i, dir) {
+  const mesh = new THREE.Mesh(baseSpikeGeo.clone(), spikeMaterial.clone());
+
+  // Root sits slightly inside the flesh.
+  const basePos = dir.clone().multiplyScalar(fruitRadius - 10);
+  mesh.position.copy(basePos);
+
+  const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    dir
+  );
+
+  const gravity = new THREE.Vector3(0, -1, 0);
+
+  let droopDir = gravity
+    .clone()
+    .sub(dir.clone().multiplyScalar(gravity.dot(dir)));
+
+  if (droopDir.lengthSq() < 0.0001) {
+    droopDir = new THREE.Vector3(1, 0, 0);
+  }
+
+  droopDir.normalize();
+
+  const bendAxis = new THREE.Vector3()
+    .crossVectors(dir, droopDir)
+    .normalize();
+
+  mesh.quaternion.copy(outwardQuat);
+
+  spikeGroup.add(mesh);
+
+  return {
+    mesh,
+    dir,
+    basePos,
+    bendAxis,
+    phase: Math.random() * Math.PI * 2,
+    launchDistance: 0,
+    launchSpeed: 180 + Math.random() * 220
+  };
+}
+
+for (let i = 0; i < spikeCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(Math.random() * 2 - 1);
+
+  const dir = new THREE.Vector3(
+    Math.sin(phi) * Math.cos(theta),
+    Math.sin(phi) * Math.sin(theta),
+    Math.cos(phi)
+  ).normalize();
+
+  spikeMeshes.push(createSpike(i, dir));
+}
+
+function updateSpikes(now, progressNorm, dt) {
+  const time = now * 0.002;
+
+  const pitchInfluence = 1 - progressNorm;
+  const medianPitch = 0.5;
+
+  const settledPitch = medianPitch * progressNorm + pitchSmooth * pitchInfluence;
+  const pitchScale = 0.78 + settledPitch * 0.4;
+
+  const modulationAmount =
+    MODULATION_MAX * (1 - progressNorm) +
+    MODULATION_MIN * progressNorm;
+
+  const targetSpikeScale =
+    OPTIMAL_SPIKE_SCALE * progressNorm +
+    pitchScale * (1 - progressNorm);
+
+  spikeMeshes.forEach((item, i) => {
+    const { mesh, dir, basePos } = item;
+
+    if (PHASE === 1) {
+      item.launchDistance = 0;
+
+      const wave =
+        Math.sin(time * 1.7 + item.phase) * 0.14 +
+        Math.sin(time * 2.6 + i * 0.13) * 0.08;
+
+      const voicePulse =
+        wave * modulationAmount +
+        smoothVolume * 0.28 * (1 - progressNorm);
+
+      const scaleY = targetSpikeScale + voicePulse;
+
+      mesh.position.copy(basePos);
+
+      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        dir
+      );
+
+      // strong enough to read as drooping, but still attached
+      const droopAmount =
+        0.72 * (1 - progressNorm) +
+        0.34 +
+        Math.sin(time * 1.6 + item.phase) * 0.07 * modulationAmount;
+
+      const droopQuat = new THREE.Quaternion().setFromAxisAngle(
+        item.bendAxis,
+        droopAmount
+      );
+
+      mesh.quaternion.copy(outwardQuat).multiply(droopQuat);
+
+      mesh.scale.set(
+        1,
+        Math.max(0.7, scaleY),
+        1
+      );
+    }
+
+    else if (PHASE === 2) {
+      item.launchDistance += item.launchSpeed * dt;
+
+      const splitPos = dir
+        .clone()
+        .multiplyScalar(fruitRadius + item.launchDistance);
+
+      mesh.position.copy(splitPos);
+
+      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        dir
+      );
+
+      const tumbleQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(
+          time + i * 0.01,
+          time * 0.7 + item.phase,
+          time * 1.1
+        )
+      );
+
+      mesh.quaternion.copy(outwardQuat).multiply(tumbleQuat);
+
+      const s = Math.max(0.35, 1 - item.launchDistance / 1800);
+      mesh.scale.set(s, s, s);
+    }
+
+    else if (PHASE === 3) {
+      item.launchDistance = Math.max(
+        0,
+        item.launchDistance - item.launchSpeed * dt * 1.25
+      );
+
+      const returningPos = dir
+        .clone()
+        .multiplyScalar(fruitRadius + item.launchDistance);
+
+      mesh.position.copy(returningPos);
+
+      const returnNorm = clamp(item.launchDistance / 900, 0, 1);
+
+      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        dir
+      );
+
+      const droopQuat = new THREE.Quaternion().setFromAxisAngle(
+        item.bendAxis,
+        0.34 + returnNorm * 0.25
+      );
+
+      mesh.quaternion.copy(outwardQuat).multiply(droopQuat);
+
+      const s = 0.8 + returnNorm * 0.2;
+      mesh.scale.set(s, s, s);
+    }
+  });
+}
+
+// =======================
+// UI
 // =======================
 
 function drawAnimatedTextLine(currentText, targetText, x, y, isTitle) {
@@ -531,14 +681,12 @@ function drawUIOverlay() {
   const ringRadius = 170;
   const progressNorm = getProgressNorm();
 
-  // ring background
   uiCtx.beginPath();
   uiCtx.strokeStyle = "rgba(30,30,30,0.16)";
   uiCtx.lineWidth = 2;
   uiCtx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
   uiCtx.stroke();
 
-  // progress ring
   if (PHASE === 1) {
     uiCtx.beginPath();
     uiCtx.strokeStyle = "rgba(255,255,255,0.88)";
@@ -560,11 +708,46 @@ function drawUIOverlay() {
   uiCtx.font = "600 38px 'Cormorant Garamond', serif";
   drawAnimatedTextLine(topTextCurrent, topTextTarget, cx, 70, true);
 
-  //uiCtx.font = "400 24px 'Cormorant Garamond', serif";
-  drawAnimatedTextLine(bottomTextCurrent, bottomTextTarget, cx, uiCanvas.height - 60, false);
+  uiCtx.font = "400 24px 'Cormorant Garamond', serif";
+  drawAnimatedTextLine(
+    bottomTextCurrent,
+    bottomTextTarget,
+    cx,
+    uiCanvas.height - 60,
+    false
+  );
 
   uiCtx.globalAlpha = 1;
 }
+
+// =======================
+// RESET
+// =======================
+
+resetBtn.addEventListener("click", () => {
+  PHASE = 1;
+  progress = 0;
+
+  softness = 0;
+  targetSoftness = 0;
+
+  smoothVolume = 0;
+  speechConfidence = 0;
+  pitchSmooth = 0.5;
+
+  phase2StartTime = 0;
+
+  textAnim = 1;
+  textAnimating = false;
+
+  initTextState();
+
+  spikeMeshes.forEach(item => {
+    item.launchDistance = 0;
+    item.mesh.position.copy(item.basePos);
+    item.mesh.scale.set(1, 1, 1);
+  });
+});
 
 // =======================
 // ANIMATE
@@ -579,7 +762,12 @@ function animate(now) {
   updateAnimatedText(dt);
 
   const features = getAudioFeatures();
-  lastFeatures = features;
+
+  if (features.hasPitch) {
+    pitchSmooth += (features.pitchNorm - pitchSmooth) * 0.18;
+  } else {
+    pitchSmooth += (0.5 - pitchSmooth) * 0.05;
+  }
 
   smoothVolume += (features.rms - smoothVolume) * 0.15;
 
@@ -591,10 +779,6 @@ function animate(now) {
 
   const gentleSpeech = speechConfidence > 0.25;
   gentleSpeechGlobal = gentleSpeech;
-
-  // =======================
-  // PHASE LOGIC
-  // =======================
 
   if (PHASE === 1) {
     if (gentleSpeech) {
@@ -631,57 +815,25 @@ function animate(now) {
 
   softness += (targetSoftness - softness) * 0.05;
 
-  // =======================
-  // SPIKES
-  // =======================
-
   const progressNorm = getProgressNorm();
-
-  const modulationAmount =
-    MODULATION_MAX * (1 - progressNorm) +
-    MODULATION_MIN * progressNorm;
-
-  const targetSpikeScale =
-    MAX_SPIKE_SCALE * (1 - progressNorm) +
-    OPTIMAL_SPIKE_SCALE * progressNorm;
-
-  // Animate tendril curves and update geometry
-  spikeMeshes.forEach((item, i) => {
-    // Rebuild the tube geometry each frame for live curling
-    const { mesh, dir, curve, i: idx } = item;
-    // Remove old geometry
-    mesh.geometry.dispose();
-    // Recreate curve with updated time
-    const newCurve = createTendrilCurve(dir, idx);
-    // Animate with taper
-    const taperRadius = t => 2.1 * (1 - t) + 0.18;
-    mesh.geometry = new THREE.TubeGeometry(newCurve, 16, 2.1, 7, false, taperRadius);
-  });
-
-  // =======================
-  // SHELL + CORE
-  // =======================
+  updateSpikes(now, progressNorm, dt);
 
   updateShell(now);
 
   const pulse = Math.sin(now * 0.005) * 5;
   const breathe = smoothVolume * 40;
-  const revealScale = 0.45 + softness * 0.75 + pulse * 0.01 + breathe * 0.01;
+  const revealScale =
+    0.45 + softness * 0.75 + pulse * 0.01 + breathe * 0.01;
 
   core.scale.setScalar(revealScale);
   core.visible = softness > 0.08;
 
-  // =======================
-  // ROTATION
-  // =======================
-
   spikeGroup.rotation.y += 0.003;
   core.rotation.y += 0.003;
-  if (shellGroup) shellGroup.rotation.y += 0.003;
 
-  // =======================
-  // RENDER + UI
-  // =======================
+  if (shellGroup) {
+    shellGroup.rotation.y += 0.003;
+  }
 
   renderer.render(scene, camera);
   drawUIOverlay();
