@@ -31,6 +31,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   4000
 );
+
 camera.position.z = 350;
 
 const renderer = new THREE.WebGLRenderer({
@@ -41,6 +42,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0xf5f3ee, 1);
+
 document.body.appendChild(renderer.domElement);
 
 // =======================
@@ -66,6 +68,7 @@ const uiCtx = uiCanvas.getContext("2d");
 
 uiCanvas.width = window.innerWidth;
 uiCanvas.height = window.innerHeight;
+
 uiCanvas.style.position = "absolute";
 uiCanvas.style.left = "0";
 uiCanvas.style.top = "0";
@@ -78,7 +81,9 @@ document.body.appendChild(uiCanvas);
 // =======================
 
 const resetBtn = document.createElement("button");
+
 resetBtn.textContent = "Reset";
+
 resetBtn.style.position = "absolute";
 resetBtn.style.top = "20px";
 resetBtn.style.right = "20px";
@@ -89,6 +94,7 @@ resetBtn.style.border = "1px solid rgba(0,0,0,0.2)";
 resetBtn.style.borderRadius = "4px";
 resetBtn.style.cursor = "pointer";
 resetBtn.style.zIndex = "1000";
+
 document.body.appendChild(resetBtn);
 
 // =======================
@@ -98,7 +104,9 @@ document.body.appendChild(resetBtn);
 let PHASE = 1;
 
 let progress = 0;
-const REQUIRED_TIME = 30; // TESTING: 5 seconds. Change to 30 for final.
+
+// testing duration
+const REQUIRED_TIME = 5;
 
 let softness = 0;
 let targetSoftness = 0;
@@ -114,8 +122,10 @@ let phase2StartTime = 0;
 
 let topTextCurrent = "";
 let bottomTextCurrent = "";
+
 let topTextTarget = "";
 let bottomTextTarget = "";
+
 let textAnim = 1;
 let textAnimating = false;
 
@@ -138,9 +148,8 @@ async function initAudio() {
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
-    }
+    // immediately force audio context on
+    await audioContext.resume();
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -168,17 +177,10 @@ async function initAudio() {
   }
 }
 
-initAudio();
-
-document.addEventListener(
-  "click",
-  () => {
-    if (audioContext && audioContext.state === "suspended") {
-      audioContext.resume();
-    }
-  },
-  { once: true }
-);
+// immediately request mic on load
+window.addEventListener("load", async () => {
+  await initAudio();
+});
 
 // =======================
 // HELPERS
@@ -232,6 +234,7 @@ function initTextState() {
 
   topTextCurrent = t.top;
   bottomTextCurrent = t.bottom;
+
   topTextTarget = t.top;
   bottomTextTarget = t.bottom;
 }
@@ -242,6 +245,7 @@ function updateAnimatedText(dt) {
   if (t.top !== topTextTarget || t.bottom !== bottomTextTarget) {
     topTextTarget = t.top;
     bottomTextTarget = t.bottom;
+
     textAnimating = true;
     textAnim = 0;
   }
@@ -252,6 +256,7 @@ function updateAnimatedText(dt) {
     if (textAnim >= 1) {
       textAnim = 1;
       textAnimating = false;
+
       topTextCurrent = topTextTarget;
       bottomTextCurrent = bottomTextTarget;
     }
@@ -351,7 +356,9 @@ const coreMaterial = new THREE.MeshPhysicalMaterial({
 });
 
 const core = new THREE.Mesh(coreGeometry, coreMaterial);
+
 core.visible = false;
+
 scene.add(core);
 
 // =======================
@@ -389,7 +396,9 @@ function createShell() {
     );
 
     const panelMesh = new THREE.Mesh(panelGeometry, shellMaterial);
-    const baseYRotation = (i / shellPanelCount) * Math.PI * 2;
+
+    const baseYRotation =
+      (i / shellPanelCount) * Math.PI * 2;
 
     panelMesh.rotation.y = baseYRotation;
 
@@ -411,15 +420,25 @@ function updateShell(now) {
 
   shellPanels.forEach((panelObj, i) => {
     const group = panelObj.group;
+
     const delay = i * 0.04;
 
-    const localOpen = clamp((eased - delay) / (1 - delay), 0, 1);
+    const localOpen = clamp(
+      (eased - delay) / (1 - delay),
+      0,
+      1
+    );
 
     group.rotation.z = localOpen * 1.15;
-    group.rotation.x = Math.sin(now * 0.001 + i) * 0.08 * localOpen;
+
+    group.rotation.x =
+      Math.sin(now * 0.001 + i) *
+      0.08 *
+      localOpen;
 
     const outward = localOpen * 22;
     const upward = localOpen * 14;
+
     const angle = panelObj.baseYRotation;
 
     group.position.set(
@@ -433,7 +452,7 @@ function updateShell(now) {
 }
 
 // =======================
-// SPIKES — CONNECTED 3D CONICAL DROOPING SPINES
+// SPIKES
 // =======================
 
 const spikeGroup = new THREE.Group();
@@ -444,9 +463,9 @@ let spikeMeshes = [];
 const spikeCount = 390;
 const fruitRadius = 110;
 
-// shorter, thicker, more rambutan-like
-const spikeHeight = 44;      // was 28
-const spikeBaseRadius = 4.4; // was 4.8
+// longer spines
+const spikeHeight = 44;
+const spikeBaseRadius = 4.4;
 const spikeEmbedDepth = 13;
 
 const spikeMaterial = new THREE.MeshStandardMaterial({
@@ -464,9 +483,12 @@ function makeSpikeGeometry() {
     false
   );
 
-  // Base is buried into the fruit so it visibly connects to the body.
-  // Local cone extends along Y.
-  geo.translate(0, spikeHeight / 2 - spikeEmbedDepth, 0);
+  // embed deeply so they visibly connect to fruit
+  geo.translate(
+    0,
+    spikeHeight / 2 - spikeEmbedDepth,
+    0
+  );
 
   return geo;
 }
@@ -474,22 +496,33 @@ function makeSpikeGeometry() {
 const baseSpikeGeo = makeSpikeGeometry();
 
 function createSpike(i, dir) {
-  const mesh = new THREE.Mesh(baseSpikeGeo.clone(), spikeMaterial.clone());
+  const mesh = new THREE.Mesh(
+    baseSpikeGeo.clone(),
+    spikeMaterial.clone()
+  );
 
-  // Root sits slightly inside the flesh.
-  const basePos = dir.clone().multiplyScalar(fruitRadius - 10);
+  // sink spine roots INSIDE flesh
+  const basePos = dir
+    .clone()
+    .multiplyScalar(fruitRadius - 14);
+
   mesh.position.copy(basePos);
 
-  const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    dir
-  );
+  const outwardQuat =
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      dir
+    );
 
   const gravity = new THREE.Vector3(0, -1, 0);
 
   let droopDir = gravity
     .clone()
-    .sub(dir.clone().multiplyScalar(gravity.dot(dir)));
+    .sub(
+      dir.clone().multiplyScalar(
+        gravity.dot(dir)
+      )
+    );
 
   if (droopDir.lengthSq() < 0.0001) {
     droopDir = new THREE.Vector3(1, 0, 0);
@@ -535,8 +568,12 @@ function updateSpikes(now, progressNorm, dt) {
   const pitchInfluence = 1 - progressNorm;
   const medianPitch = 0.5;
 
-  const settledPitch = medianPitch * progressNorm + pitchSmooth * pitchInfluence;
-  const pitchScale = 0.78 + settledPitch * 0.4;
+  const settledPitch =
+    medianPitch * progressNorm +
+    pitchSmooth * pitchInfluence;
+
+  const pitchScale =
+    0.78 + settledPitch * 0.4;
 
   const modulationAmount =
     MODULATION_MAX * (1 - progressNorm) +
@@ -553,34 +590,46 @@ function updateSpikes(now, progressNorm, dt) {
       item.launchDistance = 0;
 
       const wave =
-        Math.sin(time * 1.7 + item.phase) * 0.14 +
-        Math.sin(time * 2.6 + i * 0.13) * 0.08;
+        Math.sin(time * 1.7 + item.phase) *
+          0.14 +
+        Math.sin(time * 2.6 + i * 0.13) *
+          0.08;
 
       const voicePulse =
         wave * modulationAmount +
-        smoothVolume * 0.28 * (1 - progressNorm);
+        smoothVolume *
+          0.28 *
+          (1 - progressNorm);
 
-      const scaleY = targetSpikeScale + voicePulse;
+      const scaleY =
+        targetSpikeScale + voicePulse;
 
       mesh.position.copy(basePos);
 
-      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        dir
-      );
+      const outwardQuat =
+        new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          dir
+        );
 
-      // strong enough to read as drooping, but still attached
       const droopAmount =
         0.72 * (1 - progressNorm) +
         0.34 +
-        Math.sin(time * 1.6 + item.phase) * 0.07 * modulationAmount;
+        Math.sin(
+          time * 1.6 + item.phase
+        ) *
+          0.07 *
+          modulationAmount;
 
-      const droopQuat = new THREE.Quaternion().setFromAxisAngle(
-        item.bendAxis,
-        droopAmount
-      );
+      const droopQuat =
+        new THREE.Quaternion().setFromAxisAngle(
+          item.bendAxis,
+          droopAmount
+        );
 
-      mesh.quaternion.copy(outwardQuat).multiply(droopQuat);
+      mesh.quaternion
+        .copy(outwardQuat)
+        .multiply(droopQuat);
 
       mesh.scale.set(
         1,
@@ -590,60 +639,85 @@ function updateSpikes(now, progressNorm, dt) {
     }
 
     else if (PHASE === 2) {
-      item.launchDistance += item.launchSpeed * dt;
+      item.launchDistance +=
+        item.launchSpeed * dt;
 
       const splitPos = dir
         .clone()
-        .multiplyScalar(fruitRadius + item.launchDistance);
+        .multiplyScalar(
+          fruitRadius + item.launchDistance
+        );
 
       mesh.position.copy(splitPos);
 
-      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        dir
+      const outwardQuat =
+        new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          dir
+        );
+
+      const tumbleQuat =
+        new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(
+            time + i * 0.01,
+            time * 0.7 + item.phase,
+            time * 1.1
+          )
+        );
+
+      mesh.quaternion
+        .copy(outwardQuat)
+        .multiply(tumbleQuat);
+
+      const s = Math.max(
+        0.35,
+        1 - item.launchDistance / 1800
       );
 
-      const tumbleQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(
-          time + i * 0.01,
-          time * 0.7 + item.phase,
-          time * 1.1
-        )
-      );
-
-      mesh.quaternion.copy(outwardQuat).multiply(tumbleQuat);
-
-      const s = Math.max(0.35, 1 - item.launchDistance / 1800);
       mesh.scale.set(s, s, s);
     }
 
     else if (PHASE === 3) {
       item.launchDistance = Math.max(
         0,
-        item.launchDistance - item.launchSpeed * dt * 1.25
+        item.launchDistance -
+          item.launchSpeed *
+            dt *
+            1.25
       );
 
       const returningPos = dir
         .clone()
-        .multiplyScalar(fruitRadius + item.launchDistance);
+        .multiplyScalar(
+          fruitRadius + item.launchDistance
+        );
 
       mesh.position.copy(returningPos);
 
-      const returnNorm = clamp(item.launchDistance / 900, 0, 1);
-
-      const outwardQuat = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        dir
+      const returnNorm = clamp(
+        item.launchDistance / 900,
+        0,
+        1
       );
 
-      const droopQuat = new THREE.Quaternion().setFromAxisAngle(
-        item.bendAxis,
-        0.34 + returnNorm * 0.25
-      );
+      const outwardQuat =
+        new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          dir
+        );
 
-      mesh.quaternion.copy(outwardQuat).multiply(droopQuat);
+      const droopQuat =
+        new THREE.Quaternion().setFromAxisAngle(
+          item.bendAxis,
+          0.34 + returnNorm * 0.25
+        );
+
+      mesh.quaternion
+        .copy(outwardQuat)
+        .multiply(droopQuat);
 
       const s = 0.8 + returnNorm * 0.2;
+
       mesh.scale.set(s, s, s);
     }
   });
@@ -653,7 +727,13 @@ function updateSpikes(now, progressNorm, dt) {
 // UI
 // =======================
 
-function drawAnimatedTextLine(currentText, targetText, x, y, isTitle) {
+function drawAnimatedTextLine(
+  currentText,
+  targetText,
+  x,
+  y,
+  isTitle
+) {
   const t = easeOutCubic(textAnim);
 
   if (!textAnimating) {
@@ -664,51 +744,95 @@ function drawAnimatedTextLine(currentText, targetText, x, y, isTitle) {
 
   const outgoingAlpha = 1 - t;
   const incomingAlpha = t;
+
   const offset = isTitle ? 18 : 12;
 
   uiCtx.globalAlpha = outgoingAlpha;
-  uiCtx.fillText(currentText, x, y - offset * t);
+  uiCtx.fillText(
+    currentText,
+    x,
+    y - offset * t
+  );
 
   uiCtx.globalAlpha = incomingAlpha;
-  uiCtx.fillText(targetText, x, y + offset * (1 - t));
+  uiCtx.fillText(
+    targetText,
+    x,
+    y + offset * (1 - t)
+  );
 }
 
 function drawUIOverlay() {
-  uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+  uiCtx.clearRect(
+    0,
+    0,
+    uiCanvas.width,
+    uiCanvas.height
+  );
 
   const cx = uiCanvas.width / 2;
   const cy = uiCanvas.height / 2;
+
   const ringRadius = 170;
   const progressNorm = getProgressNorm();
 
   uiCtx.beginPath();
-  uiCtx.strokeStyle = "rgba(30,30,30,0.16)";
+
+  uiCtx.strokeStyle =
+    "rgba(30,30,30,0.16)";
+
   uiCtx.lineWidth = 2;
-  uiCtx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+
+  uiCtx.arc(
+    cx,
+    cy,
+    ringRadius,
+    0,
+    Math.PI * 2
+  );
+
   uiCtx.stroke();
 
   if (PHASE === 1) {
     uiCtx.beginPath();
-    uiCtx.strokeStyle = "rgba(255,255,255,0.88)";
+
+    uiCtx.strokeStyle =
+      "rgba(255,255,255,0.88)";
+
     uiCtx.lineWidth = 3;
+
     uiCtx.arc(
       cx,
       cy,
       ringRadius,
       -Math.PI / 2,
-      -Math.PI / 2 + Math.PI * 2 * progressNorm
+      -Math.PI / 2 +
+        Math.PI * 2 * progressNorm
     );
+
     uiCtx.stroke();
   }
 
-  uiCtx.fillStyle = "rgba(18,18,18,0.94)";
+  uiCtx.fillStyle =
+    "rgba(18,18,18,0.94)";
+
   uiCtx.textAlign = "center";
   uiCtx.textBaseline = "middle";
 
-  uiCtx.font = "600 38px 'Cormorant Garamond', serif";
-  drawAnimatedTextLine(topTextCurrent, topTextTarget, cx, 70, true);
+  uiCtx.font =
+    "600 38px 'Cormorant Garamond', serif";
 
-  uiCtx.font = "400 24px 'Cormorant Garamond', serif";
+  drawAnimatedTextLine(
+    topTextCurrent,
+    topTextTarget,
+    cx,
+    70,
+    true
+  );
+
+  uiCtx.font =
+    "400 24px 'Cormorant Garamond', serif";
+
   drawAnimatedTextLine(
     bottomTextCurrent,
     bottomTextTarget,
@@ -726,6 +850,7 @@ function drawUIOverlay() {
 
 resetBtn.addEventListener("click", () => {
   PHASE = 1;
+
   progress = 0;
 
   softness = 0;
@@ -744,7 +869,9 @@ resetBtn.addEventListener("click", () => {
 
   spikeMeshes.forEach(item => {
     item.launchDistance = 0;
+
     item.mesh.position.copy(item.basePos);
+
     item.mesh.scale.set(1, 1, 1);
   });
 });
@@ -756,7 +883,11 @@ resetBtn.addEventListener("click", () => {
 function animate(now) {
   requestAnimationFrame(animate);
 
-  const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+  const dt = Math.min(
+    (now - lastFrameTime) / 1000,
+    0.1
+  );
+
   lastFrameTime = now;
 
   updateAnimatedText(dt);
@@ -764,20 +895,27 @@ function animate(now) {
   const features = getAudioFeatures();
 
   if (features.hasPitch) {
-    pitchSmooth += (features.pitchNorm - pitchSmooth) * 0.18;
+    pitchSmooth +=
+      (features.pitchNorm - pitchSmooth) *
+      0.18;
   } else {
-    pitchSmooth += (0.5 - pitchSmooth) * 0.05;
+    pitchSmooth +=
+      (0.5 - pitchSmooth) * 0.05;
   }
 
-  smoothVolume += (features.rms - smoothVolume) * 0.15;
+  smoothVolume +=
+    (features.rms - smoothVolume) * 0.15;
 
   if (features.speechy) {
-    speechConfidence += (1 - speechConfidence) * 0.12;
+    speechConfidence +=
+      (1 - speechConfidence) * 0.12;
   } else {
     speechConfidence *= 0.75;
   }
 
-  const gentleSpeech = speechConfidence > 0.25;
+  const gentleSpeech =
+    speechConfidence > 0.25;
+
   gentleSpeechGlobal = gentleSpeech;
 
   if (PHASE === 1) {
@@ -787,45 +925,87 @@ function animate(now) {
       progress -= dt * 0.9;
     }
 
-    progress = clamp(progress, 0, REQUIRED_TIME);
+    progress = clamp(
+      progress,
+      0,
+      REQUIRED_TIME
+    );
 
-    const progressNorm = getProgressNorm();
+    const progressNorm =
+      getProgressNorm();
 
     if (progressNorm < 0.65) {
-      targetSoftness = progressNorm * 0.12;
+      targetSoftness =
+        progressNorm * 0.12;
     } else {
-      targetSoftness = 0.08 + ((progressNorm - 0.65) / 0.35) * 0.92;
+      targetSoftness =
+        0.08 +
+        ((progressNorm - 0.65) / 0.35) *
+          0.92;
     }
 
-    targetSoftness = clamp(targetSoftness, 0, 1);
+    targetSoftness = clamp(
+      targetSoftness,
+      0,
+      1
+    );
 
-    if (progressNorm >= 1 && softness > 0.985) {
+    if (
+      progressNorm >= 1 &&
+      softness > 0.985
+    ) {
       PHASE = 2;
       phase2StartTime = now;
     }
-  } else if (PHASE === 2) {
-    targetSoftness = 1;
-
-    if (now - phase2StartTime > 12000) {
-      PHASE = 3;
-    }
-  } else if (PHASE === 3) {
-    targetSoftness = Math.max(0, targetSoftness - 0.003);
   }
 
-  softness += (targetSoftness - softness) * 0.05;
+  else if (PHASE === 2) {
+    targetSoftness = 1;
 
-  const progressNorm = getProgressNorm();
-  updateSpikes(now, progressNorm, dt);
+    if (
+      now - phase2StartTime >
+      12000
+    ) {
+      PHASE = 3;
+    }
+  }
+
+  else if (PHASE === 3) {
+    targetSoftness = Math.max(
+      0,
+      targetSoftness - 0.003
+    );
+  }
+
+  softness +=
+    (targetSoftness - softness) *
+    0.05;
+
+  const progressNorm =
+    getProgressNorm();
+
+  updateSpikes(
+    now,
+    progressNorm,
+    dt
+  );
 
   updateShell(now);
 
-  const pulse = Math.sin(now * 0.005) * 5;
-  const breathe = smoothVolume * 40;
+  const pulse =
+    Math.sin(now * 0.005) * 5;
+
+  const breathe =
+    smoothVolume * 40;
+
   const revealScale =
-    0.45 + softness * 0.75 + pulse * 0.01 + breathe * 0.01;
+    0.45 +
+    softness * 0.75 +
+    pulse * 0.01 +
+    breathe * 0.01;
 
   core.scale.setScalar(revealScale);
+
   core.visible = softness > 0.08;
 
   spikeGroup.rotation.y += 0.003;
@@ -836,10 +1016,12 @@ function animate(now) {
   }
 
   renderer.render(scene, camera);
+
   drawUIOverlay();
 }
 
 initTextState();
+
 requestAnimationFrame(animate);
 
 // =======================
@@ -847,11 +1029,20 @@ requestAnimationFrame(animate);
 // =======================
 
 window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect =
+    window.innerWidth /
+    window.innerHeight;
+
   camera.updateProjectionMatrix();
 
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+  );
+
+  renderer.setPixelRatio(
+    Math.min(window.devicePixelRatio, 2)
+  );
 
   uiCanvas.width = window.innerWidth;
   uiCanvas.height = window.innerHeight;
