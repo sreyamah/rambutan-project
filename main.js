@@ -153,6 +153,11 @@ async function initAudio() {
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
+    // Resume audio context if suspended (required for modern browsers)
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -172,7 +177,7 @@ async function initAudio() {
     timeDomainData = new Float32Array(analyser.fftSize);
     freqData = new Float32Array(analyser.frequencyBinCount);
 
-    console.log("🎤 Mic connected");
+    console.log("🎤 Mic connected, state:", audioContext.state);
   } catch (err) {
     console.error("Mic error:", err);
     alert("Could not access microphone. Check browser permissions.");
@@ -181,6 +186,15 @@ async function initAudio() {
 
 // Auto-initialize audio on load
 initAudio();
+
+// Also try to resume audio context on first user interaction
+document.addEventListener('click', () => {
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume().then(() => {
+      console.log("Audio context resumed on click");
+    });
+  }
+}, { once: true });
 
 // =======================
 // HELPERS
